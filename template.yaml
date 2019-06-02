@@ -1,3 +1,60 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Transform: 'AWS::Serverless-2016-10-31'
-Resources: {}
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  Websocket:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Description: !Sub
+        - ${ResourceName} From Stack ${StackTagName} Environment ${EnvironmentTagName}
+        - ResourceName: binance-og
+      Name: !Sub
+        - ${StackTagName}-${EnvironmentTagName}-${ResourceName}
+        - ResourceName: binance-og
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.action
+    Metadata:
+      StackeryName: binance-og
+  WebsocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref Websocket
+      StageName: !Ref EnvironmentAPIGatewayStageName
+      DeploymentId: !Ref WebsocketDeployment
+  WebsocketDeployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    Properties:
+      ApiId: !Ref Websocket
+    DependsOn:
+      - WebsocketRoutewssstreambinancecom9443
+  WebsocketAuthorizerbinance:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      ApiId: !Ref Websocket
+      AuthorizerType: REQUEST
+      IdentitySource:
+        - route.request.querystring.Auth
+      Name: binance
+  WebsocketRoutewssstreambinancecom9443:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref Websocket
+      RouteKey: wss://stream.binance.com:9443
+      OperationName: base-endpoint
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref binance
+  WebsocketRoutewssstreambinancecom9443Response:
+    Type: AWS::ApiGatewayV2::RouteResponse
+    Properties:
+      ApiId: !Ref Websocket
+      RouteId: !Ref WebsocketRoutewssstreambinancecom9443
+      RouteResponseKey: $default
+Parameters:
+  StackTagName:
+    Type: String
+    Description: Stack Name (injected by Stackery at deployment time)
+  EnvironmentTagName:
+    Type: String
+    Description: Environment Name (injected by Stackery at deployment time)
+  EnvironmentAPIGatewayStageName:
+    Type: String
+    Description: Environment name used for API Gateway Stage names (injected by Stackery at deployment time)
