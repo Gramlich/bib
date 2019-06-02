@@ -2,17 +2,14 @@ AWSTemplateFormatVersion: 2010-09-09
 Description: A stack to store and alert user about crypto currencies.
 Parameters:
   CoinList:
+    Type: String
     Default: 'BTC,ETH'
-    Description: 'The list of coins to be alerted about, separated by commas and no spaces (e.g. "BTC,ETH,LTC").'
-    Type: String
   PctChangeCutoff:
-    Default: 5
-    Description: The percent change of a coin for which you would like to get an SMS alert for.
     Type: Number
+    Default: 5
   PhoneNumber:
-    Default: 0
-    Description: 'The phone number recipient of the coin alert, in E.164 (e.g. +15555550100) format.'
     Type: String
+    Default: 0
 Resources:
   Alert:
     Properties:
@@ -38,6 +35,8 @@ Resources:
       Runtime: python3.6
       Timeout: 60
     Type: AWS::Serverless::Function
+    Metadata:
+      StackeryName: Alert
   CollectPrices:
     Properties:
       CodeUri: s3://my-test-bucket-drew/76b007ab8c02f74e216615f263d537ce
@@ -56,6 +55,8 @@ Resources:
       Runtime: python3.6
       Timeout: 60
     Type: AWS::Serverless::Function
+    Metadata:
+      StackeryName: CollectPrices
   DynamoDBTable:
     Properties:
       AttributeDefinitions:
@@ -72,6 +73,8 @@ Resources:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
     Type: AWS::DynamoDB::Table
+    Metadata:
+      StackeryName: DynamoDBTable
   SNSTopic:
     Properties:
       DisplayName: CryptoAlert
@@ -79,4 +82,6 @@ Resources:
         - Endpoint: !Ref PhoneNumber
           Protocol: sms
     Type: AWS::SNS::Topic
+    Metadata:
+      StackeryName: SNSTopic
 Transform: AWS::Serverless-2016-10-31
