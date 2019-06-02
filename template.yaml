@@ -1,70 +1,82 @@
 AWSTemplateFormatVersion: 2010-09-09
-Transform: AWS::Serverless-2016-10-31
-Resources:
-  Websocket:
-    Type: AWS::ApiGatewayV2::Api
-    Properties:
-      Description: !Sub
-        - ${ResourceName} From Stack ${StackTagName} Environment ${EnvironmentTagName}
-        - ResourceName: binance-og
-      Name: !Sub
-        - ${StackTagName}-${EnvironmentTagName}-${ResourceName}
-        - ResourceName: binance-og
-      ProtocolType: WEBSOCKET
-      RouteSelectionExpression: $request.body.action
-    Metadata:
-      StackeryName: binance-og
-  WebsocketStage:
-    Type: AWS::ApiGatewayV2::Stage
-    Properties:
-      ApiId: !Ref Websocket
-      StageName: !Ref EnvironmentAPIGatewayStageName
-      DeploymentId: !Ref WebsocketDeployment
-  WebsocketDeployment:
-    Type: AWS::ApiGatewayV2::Deployment
-    Properties:
-      ApiId: !Ref Websocket
-    DependsOn:
-      - WebsocketRoutewssstreambinancecom9443
-  WebsocketAuthorizerbinance:
-    Type: AWS::ApiGatewayV2::Authorizer
-    Properties:
-      ApiId: !Ref Websocket
-      AuthorizerType: REQUEST
-      IdentitySource:
-        - route.request.querystring.Auth
-      Name: binance
-  WebsocketRoutewssstreambinancecom9443:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId: !Ref Websocket
-      RouteKey: wss://stream.binance.com:9443
-      OperationName: base-endpoint
-      AuthorizationType: CUSTOM
-      AuthorizerId: !Ref binance
-  WebsocketRoutewssstreambinancecom9443Response:
-    Type: AWS::ApiGatewayV2::RouteResponse
-    Properties:
-      ApiId: !Ref Websocket
-      RouteId: !Ref WebsocketRoutewssstreambinancecom9443
-      RouteResponseKey: $default
-  Stream:
-    Type: AWS::Kinesis::Stream
-    Properties:
-      Name: !Sub ${AWS::StackName}-Stream
-      ShardCount: 5
-      StreamEncryption:
-        EncryptionType: KMS
-        KeyId: alias/aws/kinesis
-    Metadata:
-      StackeryName: binance
+Description: A stack to store and alert user about crypto currencies.
 Parameters:
-  StackTagName:
+  CoinList:
+    Default: 'BTC,ETH'
+    Description: 'The list of coins to be alerted about, separated by commas and no spaces (e.g. "BTC,ETH,LTC").'
     Type: String
-    Description: Stack Name (injected by Stackery at deployment time)
-  EnvironmentTagName:
+  PctChangeCutoff:
+    Default: 5
+    Description: The percent change of a coin for which you would like to get an SMS alert for.
+    Type: Number
+  PhoneNumber:
+    Default: 0
+    Description: 'The phone number recipient of the coin alert, in E.164 (e.g. +15555550100) format.'
     Type: String
-    Description: Environment Name (injected by Stackery at deployment time)
-  EnvironmentAPIGatewayStageName:
-    Type: String
-    Description: Environment name used for API Gateway Stage names (injected by Stackery at deployment time)
+Resources:
+  Alert:
+    Properties:
+      CodeUri: s3://my-test-bucket-drew/76b007ab8c02f74e216615f263d537ce
+      Environment:
+        Variables:
+          COIN_LIST: !Ref CoinList
+          PCT_CHANGE_CUTOFF: !Ref PctChangeCutoff
+          PHONE_NUMBER: !Ref PhoneNumber
+          SNS_TOPIC: !Ref SNSTopic
+          TABLE_NAME: !Ref DynamoDBTable
+      Events:
+        Timer:
+          Properties:
+            Schedule: rate(5 minutes)
+          Type: Schedule
+      Handler: alert.lambda_handler
+      Policies:
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt SNSTopic.TopicName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DynamoDBTable
+      Runtime: python3.6
+      Timeout: 60
+    Type: AWS::Serverless::Function
+  CollectPrices:
+    Properties:
+      CodeUri: s3://my-test-bucket-drew/76b007ab8c02f74e216615f263d537ce
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref DynamoDBTable
+      Events:
+        Timer:
+          Properties:
+            Schedule: rate(5 minutes)
+          Type: Schedule
+      Handler: collect.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DynamoDBTable
+      Runtime: python3.6
+      Timeout: 60
+    Type: AWS::Serverless::Function
+  DynamoDBTable:
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: CoinId
+          AttributeType: S
+        - AttributeName: TimeStamp
+          AttributeType: 'N'
+      KeySchema:
+        - AttributeName: CoinId
+          KeyType: HASH
+        - AttributeName: TimeStamp
+          KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+    Type: AWS::DynamoDB::Table
+  SNSTopic:
+    Properties:
+      DisplayName: CryptoAlert
+      Subscription:
+        - Endpoint: !Ref PhoneNumber
+          Protocol: sms
+    Type: AWS::SNS::Topic
+Transform: AWS::Serverless-2016-10-31
