@@ -48,6 +48,16 @@ Resources:
       ApiId: !Ref Websocket
       RouteId: !Ref WebsocketRoutewssstreambinancecom9443
       RouteResponseKey: $default
+  Stream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: !Sub ${AWS::StackName}-Stream
+      ShardCount: 5
+      StreamEncryption:
+        EncryptionType: KMS
+        KeyId: alias/aws/kinesis
+    Metadata:
+      StackeryName: binance
 Parameters:
   StackTagName:
     Type: String
